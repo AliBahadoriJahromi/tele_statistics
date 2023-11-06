@@ -91,7 +91,7 @@ class ChatStatistics:
             if msg['type'] != 'message':
                 continue
             msgs_from.append(msg['from_id'])
-        top_n = Counter(msgs_from).most_common(10)
+        top_n = Counter(msgs_from).most_common(n)
         new_top_n = []
         for id_, num in top_n:
             new_top_n.append((id_, self.users[id_]['name'], num))
@@ -117,7 +117,7 @@ class ChatStatistics:
                 msgs_reply.append(msg['from_id'])
             except KeyError as ke:
                 continue
-        top_n = Counter(msgs_reply).most_common(10)
+        top_n = Counter(msgs_reply).most_common(n)
         new_top_n = []
         for id_, num in top_n:
             new_top_n.append((id_, self.users[id_]['name'], num))
