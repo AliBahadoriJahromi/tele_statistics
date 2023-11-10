@@ -2,6 +2,7 @@ import json
 import pathlib as Path
 import matplotlib.pyplot as plt
 from collections import Counter
+from loguru import logger
 
 from src.data import DATA_DIR
 from wordcloud import WordCloud
@@ -16,7 +17,7 @@ class ChatStatistics:
         Args:
             Chat_json : path to telegram export json file
         """
-
+        logger.info('Chat statistics created!')
         # load chat data
         with open(Chat_json) as f:
             self.chat_data = json.load(f)
@@ -40,8 +41,13 @@ class ChatStatistics:
         # generate Question & Answer dict
         self.q_a = {}
 
+        # calculate users values
+        self.__calculate_Q_and_msg()
+        self.__calculate_A_and_reply()
+        self.__calculate_QandA()
+
     
-    def calculate_Q_and_msg(self):
+    def __calculate_Q_and_msg(self):
         """
         calculate the value of Q and msg in users profile
         """
@@ -55,8 +61,7 @@ class ChatStatistics:
                     self.users[user]['Q'] += 1
                     self.q_a[msg['text']] = []
 
-    
-    def calculate_A_and_reply(self):
+    def __calculate_A_and_reply(self):
         """
         calculate the value of A and reply in users profile
         """
@@ -74,6 +79,42 @@ class ChatStatistics:
                 continue
             except IndexError as ie:
                 continue
+
+    def __calculate_QandA(self):
+        for i, msg in enumerate(self.chat_data['messages']):
+            if msg['type'] != 'message':
+                continue
+            try:
+                msg_id = msg['id']
+                reply_msg_id = msg["reply_to_message_id"]
+                diff = msg_id - reply_msg_id
+                A = self.chat_data['messages'][i]['text']
+                Q = self.chat_data['messages'][i-diff]['text']
+                if isinstance(A, str) and isinstance(Q, str) and Q in self.q_a:
+                    self.q_a[Q].append(A)
+            except KeyError as ke:
+                continue
+            except IndexError as ie:
+                continue
+
+    def __write_file(self, q_a, output_dir, file_name):
+        """ writing in a file
+        Args:
+            q_a (dict): Q&A dictionary of chat
+            output_dir (Path): Path of the file to save Q&A
+            file_name (string): name of the file
+        """
+        write_q = False
+        with open(str(output_dir / file_name), 'w') as f:
+            for q in q_a:
+                if len(q_a[q]) != 0: 
+                    f.write('Question:\n'+ q + '\n')
+                    write_q = True
+                for i, a in enumerate(q_a[q]):
+                    f.write(f'Answer {i+1}:\n' + a + '\n')
+                if write_q:
+                    f.write('-'*50 + '\n')
+                    write_q = False
 
 
     def most_talkative(self, n=10):
@@ -96,7 +137,6 @@ class ChatStatistics:
         for id_, num in top_n:
             new_top_n.append((id_, self.users[id_]['name'], num))
         return new_top_n
-
 
     def most_replier(self, n=10):
         """calculate the most n replier users in chat
@@ -125,35 +165,28 @@ class ChatStatistics:
 
 
     def generate_QandA_file(self, output_dir):
-        """ write all of questions and their answers in a text file
-
-        Args:
-            output_dir (Path): path of text file 
         """
-        for i, msg in enumerate(self.chat_data['messages']):
-            if msg['type'] != 'message':
-                continue
-            try:
-                msg_id = msg['id']
-                reply_msg_id = msg["reply_to_message_id"]
-                diff = msg_id - reply_msg_id
-                A = self.chat_data['messages'][i]['text']
-                Q = self.chat_data['messages'][i-diff]['text']
-                if isinstance(A, str) and isinstance(Q, str) and Q in self.q_a:
-                    self.q_a[Q].append(A)
-            except KeyError as ke:
-                continue
-            except IndexError as ie:
-                continue
-
-        # write Q&As in a file 
-        with open(str(output_dir / 'Q&A.txt'), 'w') as f:
-            for q in self.q_a:
-                f.write('Question:\n'+ q + '\n')
-                for i, a in enumerate(self.q_a[q]):
-                    f.write(f'Answer {i+1}:\n' + a + '\n')
-                f.write('-'*50 + '\n')
+        Args:
+            output_dir (Path): Path to store the file
+        """
+        self.__write_file(self.q_a ,output_dir, 'Q&A.txt')
             
+    def specific_QandA_file(self, output_dir,*args):
+        """ generate a Q&A file with specific words in questions
+        Args:
+            output_dir (Path): Path to store the file
+            args (string): specific words
+        """
+        new_q_a = {}
+        for q, a in self.q_a.items():
+            if len(self.q_a[q]) == 0:
+                continue
+            for key_word in args:
+                if key_word not in q:
+                    continue
+                new_q_a[q] = a
+        self.__write_file(new_q_a, output_dir, 'specific_Q&A.txt')
+
 
     def generate_word_cloud(self, output_dir):
         """generates a word cloud from a chat data
@@ -161,7 +194,7 @@ class ChatStatistics:
         Args:
             output_dir : path tp output directory for word cloud image
         """
-        
+        logger.info('generating word cloud...')
         # getting text messages
         text_content = ''
         for msg in self.chat_data['messages']:
@@ -182,14 +215,10 @@ if __name__ == "__main__":
     # example to check code
     chat_stats = ChatStatistics(Chat_json=DATA_DIR / "groupChat.json")
     chat_stats.generate_word_cloud(DATA_DIR)
-    chat_stats.calculate_Q_and_msg()
-    chat_stats.calculate_A_and_reply()
     m_r = chat_stats.most_replier()
-    print(m_r)  
-    print('-'*50)
     m_t = chat_stats.most_talkative()
-    print(m_t)
-    print('-'*50)
+    logger.info('writing Q&As in file...')
     chat_stats.generate_QandA_file(DATA_DIR)
-    print("Done!")
+    chat_stats.specific_QandA_file(DATA_DIR, 'there')
+    logger.info('Done!')
         
