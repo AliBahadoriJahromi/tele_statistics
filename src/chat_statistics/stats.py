@@ -182,7 +182,7 @@ class ChatStatistics:
             if len(self.q_a[q]) == 0:
                 continue
             for key_word in args:
-                if key_word not in q:
+                if key_word.lower() not in q.lower():
                     continue
                 new_q_a[q] = a
         self.__write_file(new_q_a, output_dir, 'specific_Q&A.txt')
@@ -214,9 +214,23 @@ class ChatStatistics:
 if __name__ == "__main__":
     # example to check code
     chat_stats = ChatStatistics(Chat_json=DATA_DIR / "groupChat.json")
+
+    # generating word cloud
     chat_stats.generate_word_cloud(DATA_DIR)
-    m_r = chat_stats.most_replier()
-    m_t = chat_stats.most_talkative()
+
+    # write top 10 in a file
+    m_r = chat_stats.most_replier(10)
+    m_t = chat_stats.most_talkative(10)
+    with open(str(DATA_DIR / 'Top 10.txt'), 'w') as f:
+        f.write('Top 10 repliers in chat:\n')
+        for user in m_r:
+            f.write(str(user) + '\n')
+        f.write("-"*50 + '\n')
+        f.write('Top 10 talkative people in chat:\n')
+        for user in m_t:
+            f.write(str(user) + '\n')
+
+    # generating Q&A files
     logger.info('writing Q&As in file...')
     chat_stats.generate_QandA_file(DATA_DIR)
     chat_stats.specific_QandA_file(DATA_DIR, 'there')
